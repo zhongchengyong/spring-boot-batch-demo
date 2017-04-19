@@ -28,27 +28,31 @@ import javax.sql.DataSource;
 public class BatchConfiguration {
 
     @Autowired
-    public JobBuilderFactory jobBuilderFactory;
+    private DataSource dataSource;
 
     @Autowired
-    public StepBuilderFactory stepBuilderFactory;
+    private JobBuilderFactory jobBuilderFactory;
 
     @Autowired
-    public DataSource dataSource;
+    private StepBuilderFactory stepBuilderFactory;
 
-    // tag::readerwriterprocessor[]
+    /**
+     * Reader
+     */
     @Bean
     public FlatFileItemReader<Person> reader() {
-        FlatFileItemReader<Person> reader = new FlatFileItemReader<>();
+        FlatFileItemReader<Person> reader = new FlatFileItemReader<Person>();
         reader.setResource(new ClassPathResource("person-data.csv"));
-        reader.setLineMapper(new DefaultLineMapper<Person>() {{
-            setLineTokenizer(new DelimitedLineTokenizer() {{
-                setNames(new String[]{"firstName", "lastName"});
-            }});
-            setFieldSetMapper(new BeanWrapperFieldSetMapper<Person>() {{
-                setTargetType(Person.class);
-            }});
-        }});
+        reader.setLineMapper(new DefaultLineMapper<Person>() {
+            {
+                setLineTokenizer(new DelimitedLineTokenizer() {{
+                    setNames(new String[]{"firstName","lastName"});
+                }});
+                setFieldSetMapper(new BeanWrapperFieldSetMapper<Person>() {{
+                    setTargetType(Person.class);
+                }});
+            }
+        });
         return reader;
     }
 
@@ -59,23 +63,19 @@ public class BatchConfiguration {
 
     @Bean
     public JdbcBatchItemWriter<Person> writer() {
-        JdbcBatchItemWriter<Person> writer = new JdbcBatchItemWriter<>();
-        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<Person>());
-        writer.setSql("INSERT INTO person (first_name, last_name) VALUES (:firstName, :lastName)");
+        JdbcBatchItemWriter<Person> writer = new JdbcBatchItemWriter<Person>();
         writer.setDataSource(dataSource);
+        writer.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<Person>());
+        writer.setSql("INSERT INTO person (first_name,last_name) VALUES (:firstName,:lastName)");
         return writer;
     }
-    // end::readerwriterprocessor[]
 
-    // tag::jobstep[]
     @Bean
     public Job importUserJob(JobCompletionListener listener) {
         return jobBuilderFactory.get("importUserJob")
                 .incrementer(new RunIdIncrementer())
                 .listener(listener)
-                .flow(step1())
-                .end()
-                .build();
+                .flow(step1()).end().build();
     }
 
     @Bean
@@ -84,8 +84,6 @@ public class BatchConfiguration {
                 .<Person, Person>chunk(10)
                 .reader(reader())
                 .processor(processor())
-                .writer(writer())
-                .build();
+                .writer(writer()).build();
     }
-    // end::jobstep[]
 }
